@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamepad API Demo with WebSocket</title>
+</head>
+<body>
+    <h2>Gamepad API Demo with WebSocket</h2>
+    <p>Connect a gamepad and press any button or move any stick.</p>
+    <p>Steering: <span id="steering">0</span></p>
+    <p>Throttle: <span id="throttle">0</span></p>
+    <script>
+        let gamepadIndex;
+        //const ws = new WebSocket('ws://beyr.cz:12001');
+        const ws = new WebSocket('ws://77.240.102.169:12001');
+        //const ws = new WebSocket('ws://192.168.113.244:12001');
+
+        ws.onopen = function(event) {
+            console.log("WebSocket is open now.");
+        };
+
+        ws.onerror = function(event) {
+            console.error("WebSocket error observed:", event);
+        };
+
+		function mapRange(value, inMin, inMax, outMin, outMax) {
+			return Math.round(((value - inMin) * (outMax - outMin) / (inMax - inMin)) + outMin);
+		}
+
+        window.addEventListener("gamepadconnected", (event) => {
+            console.log(`Gamepad connected at index ${event.gamepad.index}: ${event.gamepad.id}.`);
+            gamepadIndex = event.gamepad.index;
+            requestAnimationFrame(updateStatus);
+        });
+
+        window.addEventListener("gamepaddisconnected", (event) => {
+            console.log(`Gamepad disconnected from index ${event.gamepad.index}: ${event.gamepad.id}.`);
+        });
+
+        function updateStatus() {
+            const gamepad = navigator.getGamepads()[gamepadIndex];
+            if (!gamepad) {
+                return;
+            }
+
+			const steering = mapRange(gamepad.axes[0], -1, 1, 1, 254);
+			const throttle = mapRange(gamepad.axes[1], -1, 1, 1, 254);
+
+            document.getElementById('steering').textContent = steering.toFixed(2);
+            document.getElementById('throttle').textContent = throttle.toFixed(2);
+
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ steering: steering, throttle: throttle }));
+            } else {console.error("WS not ready"); console.log(ws.readyState);}
+
+            requestAnimationFrame(updateStatus);
+        }
+    </script>
+</body>
+</html>
