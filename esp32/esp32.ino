@@ -1,15 +1,12 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESP32Servo.h>
+#include "Secrets.h"
 
 // this program runs on ESP32 strapped on rc car
 // it receives UDP packets from server
 // it reads those packets and translates them into steering and throttle servo signal
 
-// const char* ssid = "beyr-network";
-// const char* password = "xx";
-const char* ssid = "Pixel_9742";
-const char* password = "xx";
 //const char* serverIp = "192.168.113.244";
 const char* serverIp = "77.240.102.169";
 const unsigned int serverPort = 12000;
