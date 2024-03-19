@@ -2,9 +2,9 @@ import asyncio
 import websockets
 
 class ESP32UDPProtocol:
-    def __init__(self, websocket_send):
-        self.websocket_send = websocket_send  # Function to send data back to WebSocket
-        self.esp32_address = None  # Initially, the ESP32's address is unknown
+    def __init__(self, send_to_websocket_callback):
+        self.send_to_websocket_callback = send_to_websocket_callback
+        self.esp32_address = None
 
     def connection_made(self, transport):
         self.transport = transport
@@ -15,16 +15,14 @@ class ESP32UDPProtocol:
         if not self.esp32_address:
             self.esp32_address = addr  # Store the ESP32's address when the first packet is received
             print(f"ESP32 address set to {self.esp32_address}")
-        asyncio.create_task(self.handle_packet(data, addr))
-            
-    async def handle_packet(self, data, addr):
-        # Ensure data is at least 2 bytes long to check packet type
-        if len(data) >= 2:
-            # Check for E2E latency check packet type (type 3) and forward it to the WebSocket client
-            if data[1] == 3:
-                await self.websocket_send(data)  # Send the pong back to WebSocket
-        else:
-            print("Received packet is too short to process.")            
+        asyncio.create_task(self.handle_packet(data))
+
+    async def handle_packet(self, data):
+        if len(data) < 2:
+            print("Received packet is too short to process.")
+            return
+        if data[1] == 3:  # Check for E2E latency packet type
+            await self.send_to_websocket_callback(data)
 
     def error_received(self, exc):
         print('UDP error received:', exc)
@@ -38,32 +36,53 @@ class ESP32UDPProtocol:
         else:
             print("ESP32 address not yet known, cannot send data.")
 
-async def handle_websocket(websocket, path, udp_protocol):
-    async for message in websocket:
-        print("Received WebSocket packet")
-        # Correct handling of the incoming WebSocket message
-        data = message if isinstance(message, (bytes, bytearray)) else bytearray(message, 'utf-8')
-        
-        # Simple latency check packet (type 2)
-        if data[1] == 2:
-            await websocket.send(data)  # Echo back for latency measurement
-        
-        # Control packet (type 1) or E2E latency check packet (type 3), forward to ESP32
-        elif data[1] in [1, 3]:
-            udp_protocol.send_to_esp32(data)
+current_websocket = None
 
-async def main():
+async def handle_websocket(websocket, path):
+    global current_websocket  # Declare it global here if we intend to modify it
+    current_websocket = websocket
+
+    async def send_to_websocket(data):
+        # Directly use current_websocket without declaring it global or nonlocal since it's just being accessed here
+        if current_websocket:
+            await current_websocket.send(data)
+        else:
+            print("WebSocket connection not established.")
+
     loop = asyncio.get_running_loop()
-    transport, protocol = await loop.create_datagram_endpoint(
-        lambda: ESP32UDPProtocol(lambda data: asyncio.ensure_future(current_websocket.send(data))),
+    _, protocol = await loop.create_datagram_endpoint(
+        lambda: ESP32UDPProtocol(send_to_websocket),
         local_addr=('0.0.0.0', 12000))
 
-    global current_websocket
-    current_websocket = None
+    try:
+        async for message in websocket:
+            if len(message) >= 5 and message[0] == 0xFF:
+            
+                # Simple latency check packet (type 2)
+                if message[1] == 2:
+                    await send_to_websocket(message)  # Echo back for latency measurement
+            
+                if message[1] in [0x01, 0x03]:  # Control or E2E latency packets
+                    protocol.send_to_esp32(message)
+    finally:
+        current_websocket = None  # It's safe to modify it here after declaring global at the beginning of the function
 
-    async with websockets.serve(
-        lambda ws, path: handle_websocket(ws, path, protocol), '0.0.0.0', 12001):
-        await asyncio.Future()  # Run forever
+async def main():
+    server = await websockets.serve(handle_websocket, "0.0.0.0", 12001)
 
-# Start the server
+    try:
+        await asyncio.Future()  # Run indefinitely until KeyboardInterrupt
+    except asyncio.CancelledError:
+        # Handle task cancellations here if any
+        pass
+    except KeyboardInterrupt:
+        # Handle any cleanup here
+        print("Program terminated, cleaning up...")
+    finally:
+        server.close()
+        await server.wait_closed()
+        # If you have other cleanup tasks, perform them here
+        print("Cleanup complete, program exiting.")
+
+# Run the server with graceful shutdown handling
 asyncio.run(main())
