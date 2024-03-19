@@ -17,8 +17,11 @@
 		let latencySendTime = 0;
         //const ws = new WebSocket('ws://beyr.cz:12001');
         const ws = new WebSocket('ws://77.240.102.169:12001');
-		ws.binaryType = 'arraybuffer';
         //const ws = new WebSocket('ws://192.168.113.244:12001');
+		ws.binaryType = 'arraybuffer'; // so that we can receive binary data back from the server
+
+		let lastSteeringSent = -1; // to keep state of last sent state
+		let lastThrottleSent = -1;
 
         ws.onopen = function(event) {
             console.log("WebSocket is open now.");
@@ -32,7 +35,7 @@
 		  var packet = new Uint8Array(event.data);
 		  if (packet[1] === 0x02) { // Check if it's a latency response
 			var latency = performance.now() - latencySendTime;
-			document.getElementById('latency').textContent = latency.toFixed(2) + " ms";
+			document.getElementById('latency').textContent = latency + " ms";
 		  }
 		};
 
@@ -75,17 +78,23 @@
         }
 		
 		function sendControlPacket(steering, throttle) {
-		  var packet = new Uint8Array(5);
+		  if (Math.abs(steering - lastSteeringSent) > 1 || Math.abs(throttle - lastThrottleSent) > 1) { // Check if the change in steering or throttle changed
+			var packet = new Uint8Array(5);
 
-		  // Set the packet contents
-		  packet[0] = 0xFF; // Start byte
-		  packet[1] = 0x01; // packet with steering and throttle
-		  packet[2] = steering; // Steering byte
-		  packet[3] = throttle; // Throttle byte
-		  packet[4] = 0x00; // Tail byte
+			// Set the packet contents
+			packet[0] = 0xFF; // Start byte
+			packet[1] = 0x01; // Packet type for control
+			packet[2] = steering; // Steering byte
+			packet[3] = throttle; // Throttle byte
+			packet[4] = 0x00; // Tail byte
 
-		  // Send the binary packet over WebSocket
-		  ws.send(packet);
+			// Send the binary packet over WebSocket
+			ws.send(packet);
+
+			// Update the last sent values
+			lastSteeringSent = steering;
+			lastThrottleSent = throttle;
+		  }
 		}
 		
 		function sendLatencyPacket() {
