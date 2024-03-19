@@ -60,7 +60,11 @@ void loop() {
         myservo.write(mapped);
       } else if (incomingPacket[1] == 3)
       {
-        // TODO pong
+        char pongPacket[] = {0xFF, 3, 0x00, 0x00, 0x00}; // Type 3 for pong
+        udp.beginPacket(serverIp, serverPort);
+        udp.write((unsigned char*)pongPacket, sizeof(pongPacket));
+        udp.endPacket();
+        Serial.printf("Sent pong packet");
       } else {
         Serial.printf("Got unknown packet");
       }

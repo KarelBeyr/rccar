@@ -10,18 +10,30 @@ udp_listen_sock.bind(("0.0.0.0", 12000))
 # This will store the last known address of the ESP32
 esp32_address = None
 
-def listen_for_esp32():
+current_websocket = None
+
+async def listen_for_esp32():
     global esp32_address
+    global current_websocket
     while True:
-        # Wait for a message from the ESP32
-        data, addr = udp_listen_sock.recvfrom(1024)  # Buffer size is 1024 bytes
-        print(f"Received message: {data} from {addr}")
-        # Update ESP32's address for future communications
-        esp32_address = addr
-        break  # Break after the first message to return control to asyncio loop
+        # Wait for data to be available on the socket
+        await asyncio.sleep(0.1)  # Non-blocking wait; adjust as needed
+        try:
+            data, addr = udp_listen_sock.recvfrom(1024, socket.MSG_DONTWAIT)  # Non-blocking call
+            print(f"Received message: {data} from {addr}")
+            esp32_address = addr  # Update ESP32's address with every packet
+            # If it's a pong packet, forward it to the WebSocket client
+            if data and len(data) >= 5 and data[0] == 0xFF and data[1] == 0x03 and current_websocket:
+                await current_websocket.send(data)
+        except BlockingIOError:
+            # No data available; continue the loop
+            continue
 
 async def handle_websocket(websocket, path):
     global esp32_address
+    global current_websocket
+    current_websocket = websocket  # Store the current websocket connection
+    
     while True:
         message = await websocket.recv()
         message = message if isinstance(message, bytearray) else bytearray(message)
@@ -46,7 +58,14 @@ async def handle_websocket(websocket, path):
                 # Simply echo the packet back to the sender
                 await websocket.send(message)
                 print(f"Echoed back latency test packet: {message}")
-                
+            
+            elif packet_type == 0x03:  # Packet type 3 for ESP32 latency check
+                if esp32_address is not None:
+                    udp_listen_sock.sendto(message, esp32_address)
+                    print(f"Forwarded latency check packet to ESP32 {esp32_address}: {message}")
+                else:
+                    print("ESP32 address not known yet. Skipping latency check packet forwarding.")
+                    
             else:
                 packet_contents = ' '.join(f'{byte:02X}' for byte in message)
                 print(f"Received unknown packet type: [{packet_contents}]")
@@ -56,12 +75,12 @@ async def handle_websocket(websocket, path):
             print(f"Received malformed packet: [{packet_contents}]")
 
 async def main():
-    # Run the UDP listener in a separate thread to not block asyncio loop
-    loop = asyncio.get_running_loop()
-    loop.run_in_executor(None, listen_for_esp32)  # Note: Not awaited here
+    # Start listening for UDP packets in a separate task
+    asyncio.create_task(listen_for_esp32())
 
     # Start the WebSocket server
     async with websockets.serve(handle_websocket, "0.0.0.0", 12001):
         await asyncio.Future()  # Run forever
 
+# Run the main function
 asyncio.run(main())
