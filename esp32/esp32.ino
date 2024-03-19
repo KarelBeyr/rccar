@@ -17,6 +17,13 @@ WiFiUDP udp;
 Servo myservo;  // create servo object to control a servo
 int servoPin = 13;
 
+void sendInitialUdpPacket() { // this basically connects us to the server so that the server knows where to send all data
+  Serial.println("Sending UDP packet...");
+  udp.beginPacket(serverIp, serverPort);
+  udp.write(0xFF); // Example byte to send
+  udp.endPacket();
+}
+
 void setup() {
   Serial.begin(115200);
   WiFi.begin(ssid, password);
@@ -28,21 +35,19 @@ void setup() {
   udp.begin(localUdpPort);
   Serial.print("Local UDP port: ");
   Serial.println(localUdpPort);
+  
   pinMode(2, OUTPUT);
 
   ESP32PWM::allocateTimer(0);
 	myservo.setPeriodHertz(50);    // standard 50 hz servo
 	myservo.attach(servoPin, 500, 2200); // attaches the servo on pin 18 to the servo object
+
+  sendInitialUdpPacket();
 }
 
 byte b = 0;
 
 void loop() {
-  Serial.printf(".");
-  udp.beginPacket(serverIp, serverPort);
-  udp.write(b++);
-  udp.endPacket();
-
   char incomingPacket[255]; 
   int packetSize = udp.parsePacket();
   if (packetSize) {
@@ -64,5 +69,5 @@ void loop() {
       Serial.printf("But it's len is not 5 (%d) or header is not 0xFF(%d) or tail is not 0x00 (%d)", len, incomingPacket[0], incomingPacket[4]);
     }
   }
-  delay(25);
+  delay(5);
 }

@@ -11,12 +11,13 @@
     <p>Steering: <span id="steering">0</span></p>
     <p>Throttle: <span id="throttle">0</span></p>
 	<button id="latencyTest">Test Latency</button>
-	<p>Latency: <span id="latency">N/A</span> ms</p>
+	<p>Latency: <span id="latency">N/A</span></p>
     <script>
         let gamepadIndex;
 		let latencySendTime = 0;
         //const ws = new WebSocket('ws://beyr.cz:12001');
         const ws = new WebSocket('ws://77.240.102.169:12001');
+		ws.binaryType = 'arraybuffer';
         //const ws = new WebSocket('ws://192.168.113.244:12001');
 
         ws.onopen = function(event) {
@@ -88,6 +89,7 @@
 		}
 		
 		function sendLatencyPacket() {
+		  console.log("Sending latency check");
 		  var packet = new Uint8Array(5);
 		  packet[0] = 0xFF; // Start byte
 		  packet[1] = 0x02; // Packet type 2 for latency test
