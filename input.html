@@ -10,8 +10,11 @@
     <p>Connect a gamepad and press any button or move any stick.</p>
     <p>Steering: <span id="steering">0</span></p>
     <p>Throttle: <span id="throttle">0</span></p>
+	<button id="latencyTest">Test Latency</button>
+	<p>Latency: <span id="latency">N/A</span> ms</p>
     <script>
         let gamepadIndex;
+		let latencySendTime = 0;
         //const ws = new WebSocket('ws://beyr.cz:12001');
         const ws = new WebSocket('ws://77.240.102.169:12001');
         //const ws = new WebSocket('ws://192.168.113.244:12001');
@@ -23,6 +26,14 @@
         ws.onerror = function(event) {
             console.error("WebSocket error observed:", event);
         };
+		
+		ws.onmessage = function(event) {
+		  var packet = new Uint8Array(event.data);
+		  if (packet[1] === 0x02) { // Check if it's a latency response
+			var latency = performance.now() - latencySendTime;
+			document.getElementById('latency').textContent = latency.toFixed(2) + " ms";
+		  }
+		};
 
 		function mapRange(value, inMin, inMax, outMin, outMax) {
 			return Math.round(((value - inMin) * (outMax - outMin) / (inMax - inMin)) + outMin);
@@ -37,6 +48,10 @@
         window.addEventListener("gamepaddisconnected", (event) => {
             console.log(`Gamepad disconnected from index ${event.gamepad.index}: ${event.gamepad.id}.`);
         });
+		
+		document.getElementById('latencyTest').addEventListener('click', function() {
+		  sendLatencyPacket();
+		});
 
         function updateStatus() {
             const gamepad = navigator.getGamepads()[gamepadIndex];
@@ -69,6 +84,18 @@
 		  packet[4] = 0x00; // Tail byte
 
 		  // Send the binary packet over WebSocket
+		  ws.send(packet);
+		}
+		
+		function sendLatencyPacket() {
+		  var packet = new Uint8Array(5);
+		  packet[0] = 0xFF; // Start byte
+		  packet[1] = 0x02; // Packet type 2 for latency test
+		  packet[2] = 0x00; // Placeholder byte
+		  packet[3] = 0x00; // Placeholder byte
+		  packet[4] = 0x00; // Tail byte
+		  
+		  latencySendTime = performance.now();
 		  ws.send(packet);
 		}
     </script>
