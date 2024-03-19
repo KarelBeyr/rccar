@@ -29,14 +29,26 @@ async def handle_websocket(websocket, path):
             print("ESP32 address not known yet.")
             continue  # Skip if we don't have the ESP32's address
 
-        data = json.loads(message)
-        steering = data['steering']
-        throttle = data['throttle']
-        udp_packet = bytearray([0xFF, steering, throttle, 0x00])
+        # data = json.loads(message)
+        # steering = data['steering']
+        # throttle = data['throttle']
+        # udp_packet = bytearray([0xFF, steering, throttle, 0x00])
+        if len(message) == 5 and message[0] == 0xFF and message[-1] == 0x00 and message[1] == 0x01:
+            steering = message[2]  # Extract steering byte
+            throttle = message[3]  # Extract throttle byte
+            # Now, 'steering' and 'throttle' are the byte values directly from the packet
+            # You can use these values as is or convert them if needed
+            # Construct UDP packet (though it might be redundant depending on your use case)
+            udp_packet = bytearray([0xFF, steering, throttle, 0x00])
 
-        # Send the constructed packet to the ESP32
-        udp_listen_sock.sendto(udp_packet, esp32_address)
-        print(f"Forwarded message to ESP32 {esp32_address}: {udp_packet}")
+            # Send the constructed packet to the ESP32
+            udp_listen_sock.sendto(udp_packet, esp32_address)
+            print(f"Forwarded message to ESP32 {esp32_address}: {udp_packet}")
+
+        else:
+            packet_contents = ' '.join(f'{byte:02X}' for byte in message)
+            print(f"Received malformed packet: [{packet_contents}]")
+
 
 async def main():
     # Run the UDP listener in a separate thread to not block asyncio loop

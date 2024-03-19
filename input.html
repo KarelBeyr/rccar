@@ -51,11 +51,26 @@
             document.getElementById('throttle').textContent = throttle.toFixed(2);
 
             if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ steering: steering, throttle: throttle }));
+				sendControlPacket(steering, throttle);
+                //ws.send(JSON.stringify({ steering: steering, throttle: throttle }));
             } else {console.error("WS not ready"); console.log(ws.readyState);}
 
             requestAnimationFrame(updateStatus);
         }
+		
+		function sendControlPacket(steering, throttle) {
+		  var packet = new Uint8Array(5);
+
+		  // Set the packet contents
+		  packet[0] = 0xFF; // Start byte
+		  packet[1] = 0x01; // packet with steering and throttle
+		  packet[2] = steering; // Steering byte
+		  packet[3] = throttle; // Throttle byte
+		  packet[4] = 0x00; // Tail byte
+
+		  // Send the binary packet over WebSocket
+		  ws.send(packet);
+		}
     </script>
 </body>
 </html>
