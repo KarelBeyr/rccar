@@ -58,7 +58,7 @@ async def handle_websocket(websocket, path):
 async def main():
     # Run the UDP listener in a separate thread to not block asyncio loop
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, listen_for_esp32)
+    loop.run_in_executor(None, listen_for_esp32)  # Note: Not awaited here
 
     # Start the WebSocket server
     async with websockets.serve(handle_websocket, "0.0.0.0", 12001):

@@ -5,7 +5,7 @@ current issues:
 - startup sequence: I must start the server first, or it might not register esp32 in case it changes it's IP address
  - thus probably change logic in python server that whenever it receives a "wakeup" packet from esp32, it rewrites its IP address
 - how to measure latency? Would it be possible to create special ping in JS that would send packet through server to esp32, which would pong and JS would measure latency and display it on screen? 
-- do I need to create UDP packet "header" and "tail"? If yes, probably I should create {header-FF}-{packetType-1=normal,2=ping}-{steer}-{throttle}-{tail-00}
-- do I care about websocket packet payload? If I can create a similar packet structure like in UDP (so that python server is easier (no JSON parsing)) it would be worth it.
+* do I need to create UDP packet "header" and "tail"? If yes, probably I should create {header-FF}-{packetType-1=normal,2=ping}-{steer}-{throttle}-{tail-00}
+* do I care about websocket packet payload? If I can create a similar packet structure like in UDP (so that python server is easier (no JSON parsing)) it would be worth it.
 - security concerns - anybody can currently hijack my car as everything goes unencrypted over public IP address. How to improve?
 - animate input in FE in a better graphical way, ideally show car with turned wheels, but how to display speed?
