@@ -75,5 +75,4 @@ void loop() {
       Serial.printf("But it's len is not 5 (%d) or header is not 0xFF(%d) or tail is not 0x00 (%d)", len, incomingPacket[0], incomingPacket[4]);
     }
   }
-  delay(5);
 }
