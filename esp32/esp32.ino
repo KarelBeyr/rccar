@@ -55,8 +55,10 @@ void loop() {
     int len = udp.read(incomingPacket, 255);
     if (len >= 5 && incomingPacket[0] == 255 && incomingPacket[4] == 0) {
       if (incomingPacket[1] == 1) { // steering & throttle packet
-        Serial.printf("Steering is %3d, throttle is %3d\n", incomingPacket[2], incomingPacket[3]);
-        int mapped = map(incomingPacket[1], 1, 255, 180, 0);
+        int steering = incomingPacket[2];
+        int throttle = incomingPacket[3];
+        Serial.printf("Steering is %3d, throttle is %3d\n", steering, throttle);
+        int mapped = map(steering, 1, 255, 180, 0);
         myservo.write(mapped);
       } else if (incomingPacket[1] == 3)
       {

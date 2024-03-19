@@ -12,6 +12,8 @@
     <p>Throttle: <span id="throttle">0</span></p>
 	<button id="latencyTest">Test Latency</button>
 	<p>Latency: <span id="latency">N/A</span></p>
+	<button id="e2eLatencyTest">Test E2E Latency</button>
+	<p>E2E Latency: <span id="e2eLatency">N/A</span></p>
     <script>
         let gamepadIndex;
 		let latencySendTime = 0;
@@ -33,9 +35,12 @@
 		
 		ws.onmessage = function(event) {
 		  var packet = new Uint8Array(event.data);
-		  if (packet[1] === 0x02) { // Check if it's a latency response
+		  if (packet[1] === 0x02) { // Simple latency response
 			var latency = performance.now() - latencySendTime;
 			document.getElementById('latency').textContent = latency + " ms";
+		  } else if (packet[1] === 0x03) { // E2E latency response
+			var e2eLatency = performance.now() - latencySendTime;
+			document.getElementById('e2eLatency').textContent = e2eLatency + " ms";
 		  }
 		};
 
@@ -55,6 +60,10 @@
 		
 		document.getElementById('latencyTest').addEventListener('click', function() {
 		  sendLatencyPacket();
+		});
+
+		document.getElementById('e2eLatencyTest').addEventListener('click', function() {
+		  sendE2ELatencyPacket();
 		});
 
         function updateStatus() {
@@ -107,6 +116,19 @@
 		  packet[4] = 0x00; // Tail byte
 		  
 		  latencySendTime = performance.now();
+		  ws.send(packet);
+		}
+		
+		function sendE2ELatencyPacket() {
+		  console.log("Sending E2E latency check");
+		  var packet = new Uint8Array(5);
+		  packet[0] = 0xFF; // Start byte
+		  packet[1] = 0x03; // Packet type 3 for E2E latency test
+		  packet[2] = 0x00; // Placeholder byte
+		  packet[3] = 0x00; // Placeholder byte
+		  packet[4] = 0x00; // Tail byte
+		  
+		  latencySendTime = performance.now(); // Reuse the same latencySendTime for simplicity
 		  ws.send(packet);
 		}
     </script>
