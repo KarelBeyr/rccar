@@ -15,19 +15,24 @@
 	<button id="e2eLatencyTest">Test E2E Latency</button>
 	<p>E2E Latency: <span id="e2eLatency">N/A</span></p>
     <script>
+        const wsProtocol = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
+        const wsHost = window.location.hostname;
+        const wsPort = '12001'; // Set the WebSocket server port
+		const wsUrl = wsProtocol + wsHost + ':' + wsPort;
+
+        const ws = new WebSocket(wsUrl);
         let gamepadIndex;
 		let latencySendTime = 0;
         //const ws = new WebSocket('ws://beyr.cz:12001');
         //const ws = new WebSocket('ws://77.240.102.169:12001');
-        //const ws = new WebSocket('ws://192.168.113.211:12001');
-        const ws = new WebSocket('ws://192.168.113.244:12001');
+        //const ws = new WebSocket('ws://192.168.113.244:12001');
 		ws.binaryType = 'arraybuffer'; // so that we can receive binary data back from the server
 
 		let lastSteeringSent = -1; // to keep state of last sent state
 		let lastThrottleSent = -1;
 
         ws.onopen = function(event) {
-            console.log("WebSocket is open now.");
+            console.log("Connected to WebSocket at " + wsUrl);
         };
 
         ws.onerror = function(event) {

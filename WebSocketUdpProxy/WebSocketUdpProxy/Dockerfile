@@ -14,4 +14,7 @@ RUN dotnet publish -c Release -o out
 FROM mcr.microsoft.com/dotnet/runtime:7.0
 WORKDIR /app
 COPY --from=build-env /app/out .
+# Ensure index.html is copied to the working directory ("/app") where the application expects it
+COPY index.html ./
+
 ENTRYPOINT ["dotnet", "WebSocketUdpProxy.dll"]

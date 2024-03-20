@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.WebSockets;
+using System.Text;
 
 namespace WebSocketUdpProxy;
 
@@ -8,6 +9,7 @@ public class WebSocketServer
     private readonly int _port;
     private UdpServer? _udpServer; // Reference to UdpServer
     private WebSocket? _currentWebSocket;
+    private readonly string _htmlFilePath = "./index.html";
 
     public WebSocketServer(int port)
     {
@@ -75,8 +77,22 @@ public class WebSocketServer
             }
             else
             {
-                context.Response.StatusCode = 400;
-                context.Response.Close();
+                // Serve the HTML page for non-WebSocket requests
+                try
+                {
+                    string content = File.ReadAllText(_htmlFilePath);
+                    byte[] buffer = Encoding.UTF8.GetBytes(content);
+                    context.Response.ContentLength64 = buffer.Length;
+                    context.Response.ContentType = "text/html";
+                    await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
+                    context.Response.OutputStream.Close();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to serve HTML page: {ex.Message}");
+                    context.Response.StatusCode = 500; // Internal Server Error
+                    context.Response.Close();
+                }
             }
         }
     }
