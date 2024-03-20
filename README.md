@@ -27,5 +27,7 @@ I want to create a forwarding server that accepts packets from Websocket (from c
 - The server needs only to handle a single connection from websocket and a single connection to UDP. However, it must be able to handle both clients to reconnect from new IP address (e.g. websocket or UDP client can restart and they will initiate new websocket or UDP connection).
 - The server must be able to accept websocket communication even if UDP is not connected and perform basic tasks (logging incoming packets, replying to latency packet. Of course it would not forward anything).
 - The server must be able to accept UDP communication even if Websocket is not connected yet.
+
 Write this server in Python in a single file.
+
 Write me a Dockerfile and command how to build the image and then another command to run the container.
