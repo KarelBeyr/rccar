@@ -1,1 +1,4 @@
 esp32/secrets.h
+WebSocketUdpProxy/.vs/
+WebSocketUdpProxy/WebSocketUdpProxy/bin/
+WebSocketUdpProxy/WebSocketUdpProxy/obj/

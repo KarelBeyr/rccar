@@ -18,8 +18,9 @@
         let gamepadIndex;
 		let latencySendTime = 0;
         //const ws = new WebSocket('ws://beyr.cz:12001');
-        const ws = new WebSocket('ws://77.240.102.169:12001');
-        //const ws = new WebSocket('ws://192.168.113.244:12001');
+        //const ws = new WebSocket('ws://77.240.102.169:12001');
+        //const ws = new WebSocket('ws://192.168.113.211:12001');
+        const ws = new WebSocket('ws://192.168.113.244:12001');
 		ws.binaryType = 'arraybuffer'; // so that we can receive binary data back from the server
 
 		let lastSteeringSent = -1; // to keep state of last sent state

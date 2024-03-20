@@ -2,15 +2,10 @@
 Forwarding signals joystick/controller connected to computer (phone) to ESP32 connected servos in an RC car.
 
 ## Current issues
-- [x] strange delay(25) in each arduino loop - it's there to prevent server flooding. But probably it would be better to initialize server connection at startup (in setup?) and then never send it again. And no delay in loop would be necessary
-- [x] startup sequence: I must start the server first, or it might not register esp32 in case it changes it's IP address
-- [x] thus probably change logic in python server that whenever it receives a "wakeup" packet from esp32, it rewrites its IP address
-- [x] how to measure latency? Would it be possible to create special ping in JS that would send packet through server to esp32, which would pong and JS would measure latency and display it on screen? 
-- [x] do I need to create UDP packet "header" and "tail"? If yes, probably I should create {header-FF}-{packetType-1=normal,2=ping}-{steer}-{throttle}-{tail-00}
-- [x] do I care about websocket packet payload? If I can create a similar packet structure like in UDP (so that python server is easier (no JSON parsing)) it would be worth it.
-- [ ] security concerns - anybody can currently hijack my car as everything goes unencrypted over public IP address. How to improve?
+- [ ] security concerns - anybody can currently hijack my car as everything goes unencrypted over public IP address. How to improve? There could be a password field and forwarding server would validate password hash against some hardcoded value..
 - [ ] animate input in FE in a better graphical way, ideally show car with turned wheels, but how to display speed?
-- [x] bug: when websocket restarts, python fails with address already in use
+- [ ] serve complete HTML web page from websocketforwarding server
+- [ ] enable FE control without having any gamepad connected
 
 ## Nocode GPT input
 ### Server component
@@ -28,6 +23,6 @@ I want to create a forwarding server that accepts packets from Websocket (from c
 - The server must be able to accept websocket communication even if UDP is not connected and perform basic tasks (logging incoming packets, replying to latency packet. Of course it would not forward anything).
 - The server must be able to accept UDP communication even if Websocket is not connected yet.
 
-Write this server in Python in a single file.
+Write this server in C#, you can split it into multiple files.
 
-Write me a Dockerfile and command how to build the image and then another command to run the container.
+Write me a Dockerfile (use .NET7) and command how to build the image and then another command to run the container.

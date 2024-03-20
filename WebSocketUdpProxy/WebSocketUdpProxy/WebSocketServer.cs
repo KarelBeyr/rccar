@@ -6,8 +6,8 @@ namespace WebSocketUdpProxy;
 public class WebSocketServer
 {
     private readonly int _port;
-    private UdpServer _udpServer; // Reference to UdpServer
-    private WebSocket _currentWebSocket;
+    private UdpServer? _udpServer; // Reference to UdpServer
+    private WebSocket? _currentWebSocket;
 
     public WebSocketServer(int port)
     {
@@ -55,21 +55,18 @@ public class WebSocketServer
                     }
                     else
                     {
-                        // Process received packet
+                        Console.WriteLine("WR");
                         byte[] receivedData = buffer.Take(result.Count).ToArray();
-                        // Determine action based on packet type
                         if (receivedData.Length > 1)
                         {
                             switch (receivedData[1]) // Type byte
                             {
                                 case 0x02: // Simple latency packet
-                                           // Echo back to WebSocket client
-                                    await SendToWebSocketClientAsync(receivedData); // webSocket.SendAsync(new ArraySegment<byte>(receivedData, 0, result.Count), WebSocketMessageType.Binary, true, cancellationToken);
+                                    await Send(receivedData);
                                     break;
                                 case 0x01: // Control packet
                                 case 0x03: // E2E latency packet
-                                           // Forward to UDP client
-                                    _udpServer.Send(receivedData);
+                                    _udpServer?.Send(receivedData);
                                     break;
                             }
                         }
@@ -84,13 +81,14 @@ public class WebSocketServer
         }
     }
 
-    public async Task SendToWebSocketClientAsync(byte[] data)
+    public async Task Send(byte[] data)
     {
         if (_currentWebSocket != null && _currentWebSocket.State == WebSocketState.Open)
         {
-            Console.WriteLine("WS server sending packet back to WS");
             await _currentWebSocket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, CancellationToken.None);
-        } else
+            Console.Write("WS");
+        }
+        else
         {
             Console.WriteLine("WS server tried to send packet back to WS, but it was not possible");
         }

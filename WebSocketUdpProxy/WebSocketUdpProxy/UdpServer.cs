@@ -6,10 +6,10 @@ namespace WebSocketUdpProxy;
 public class UdpServer
 {
     private readonly int _port;
-    private UdpClient _udpClient;
-    private IPEndPoint _remoteEndPoint;
+    private UdpClient? _udpClient;
+    private IPEndPoint? _remoteEndPoint;
 
-    private WebSocketServer _wsServer; // Reference to WebSocketServer
+    private WebSocketServer? _wsServer; // Reference to WebSocketServer
 
     public UdpServer(int port)
     {
@@ -30,19 +30,20 @@ public class UdpServer
         {
             var receivedResult = await _udpClient.ReceiveAsync();
             _remoteEndPoint = receivedResult.RemoteEndPoint;
-            Console.WriteLine("UDP packet received");
-
-            // Optionally, process or forward the received packet
-            _wsServer?.SendToWebSocketClientAsync(receivedResult.Buffer);
+            Console.WriteLine("UR");
+            _wsServer?.Send(receivedResult.Buffer);
         }
     }
 
     public void Send(byte[] data)
     {
-        if (_remoteEndPoint != null)
+        if (_remoteEndPoint != null && _udpClient != null)
         {
             _udpClient.Send(data, data.Length, _remoteEndPoint);
-            Console.WriteLine("Packet sent to UDP client");
+            Console.WriteLine("US");
+        } else
+        {
+            Console.WriteLine("Asked to send data to UDP, but _remoteEndpoint is null");
         }
     }
 }

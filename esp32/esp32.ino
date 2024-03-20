@@ -7,6 +7,7 @@
 // it receives UDP packets from server
 // it reads those packets and translates them into steering and throttle servo signal
 
+//const char* serverIp = "192.168.113.211";
 const char* serverIp = "192.168.113.244";
 //const char* serverIp = "77.240.102.169";
 const unsigned int serverPort = 12000;
