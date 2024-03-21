@@ -1,0 +1,8 @@
+docker stop rc
+docker rm rc
+
+docker run -d --restart unless-stopped \
+ --name=rc \
+ -p 12000:12000/udp \
+ -p 12001:12001 \
+ rc
