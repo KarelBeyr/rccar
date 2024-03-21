@@ -6,59 +6,66 @@
     <title>Gamepad API Demo with WebSocket</title>
 </head>
 <body>
-	<h2>Gamepad API Demo with WebSocket</h2>
+	<h2>RC car control</h2>
 	<p>Connect a gamepad and press any button or move any stick.</p>
 	<p>Steering: <span id="steering">0</span></p>
 	<p>Throttle: <span id="throttle">0</span></p>
-	<button id="latencyTest">Test Latency</button>
-	<p>Latency: <span id="latency">N/A</span></p>
-	<button id="e2eLatencyTest">Test E2E Latency</button>
-	<p>E2E Latency: <span id="e2eLatency">N/A</span></p>
+	<p>
+		<button onclick="sendLatencyPacket()">Test Latency</button>
+		<span id="latency">N/A</span>
+	</p>
+	<p>
+		<button onclick="sendE2ELatencyPacket()">Test E2E Latency</button>
+		<span id="e2eLatency">N/A</span>
+	</p>
+	<button id="wsStatus" onclick="connectWebsocket()">Connect websocket</button>
 
-	<script src="https://cdn.statically.io/gh/cyrus2281/joystick-controller/main/dist/umd/joystick-controller.min.js">
-	</script>
+	<script src="https://cdn.statically.io/gh/cyrus2281/joystick-controller/main/dist/umd/joystick-controller.min.js"></script>
 
 	<script>
 		JoystickController = JoystickController.default
 
 		let vjoyx = 0;
 		let vjoyy = 0;
-		const joystick = new JoystickController({}, (data) => { /*console.log(data); */ vjoyx = data.x; vjoyy = data.y });
+		const joystick = new JoystickController({}, (data) => { /*console.log(data); */ vjoyx = data.x; vjoyy = data.y });  // https://github.com/cyrus2281/joystick-controller
 
 		const wsProtocol = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
 		const wsHost = window.location.hostname;
-		const wsPort = '12001'; // Set the WebSocket server port
+		const wsPort = (window.location.protocol === 'https:') ? 443 : 12001; // Set the WebSocket server port. In dev it should be 12001, in prod
 		const wsUrl = wsProtocol + wsHost + ':' + wsPort;
+		let ws;
 
-		const ws = new WebSocket(wsUrl);
-		let gamepadIndex;
+		function connectWebsocket() {
+			ws = new WebSocket(wsUrl);
+			ws.binaryType = 'arraybuffer'; // so that we can receive binary data back from the server
+
+			ws.onopen = function (event) {
+				console.log("Connected to WebSocket at " + wsUrl);
+                document.getElementById('wsStatus').style.backgroundColor = 'green';
+			};
+
+			ws.onerror = function (event) {
+				console.error("WebSocket error observed:", event);
+			};
+
+			ws.onmessage = function (event) {
+				var packet = new Uint8Array(event.data);
+				if (packet[1] === 0x02) { // Simple latency response
+					var latency = performance.now() - latencySendTime;
+                    document.getElementById('latency').textContent = latency.toFixed(0) + " ms";
+				} else if (packet[1] === 0x03) { // E2E latency response
+					var e2eLatency = performance.now() - latencySendTime;
+                    document.getElementById('e2eLatency').textContent = e2eLatency.toFixed(0) + " ms";
+				}
+			};
+		}
+
+		connectWebsocket();
+		let gamepadIndex = -1;
 		let latencySendTime = 0;
-		//const ws = new WebSocket('ws://beyr.cz:12001');
-		//const ws = new WebSocket('ws://77.240.102.169:12001');
-		//const ws = new WebSocket('ws://192.168.113.244:12001');
-		ws.binaryType = 'arraybuffer'; // so that we can receive binary data back from the server
 
 		let lastSteeringSent = -1; // to keep state of last sent state
 		let lastThrottleSent = -1;
-
-		ws.onopen = function (event) {
-			console.log("Connected to WebSocket at " + wsUrl);
-		};
-
-		ws.onerror = function (event) {
-			console.error("WebSocket error observed:", event);
-		};
-
-		ws.onmessage = function (event) {
-			var packet = new Uint8Array(event.data);
-			if (packet[1] === 0x02) { // Simple latency response
-				var latency = performance.now() - latencySendTime;
-				document.getElementById('latency').textContent = latency + " ms";
-			} else if (packet[1] === 0x03) { // E2E latency response
-				var e2eLatency = performance.now() - latencySendTime;
-				document.getElementById('e2eLatency').textContent = e2eLatency + " ms";
-			}
-		};
 
 		function mapRange(value, inMin, inMax, outMin, outMax) {
 			return Math.round(((value - inMin) * (outMax - outMin) / (inMax - inMin)) + outMin);
@@ -74,14 +81,6 @@
 			console.log(`Gamepad disconnected from index ${event.gamepad.index}: ${event.gamepad.id}.`);
 		});
 
-		document.getElementById('latencyTest').addEventListener('click', function () {
-			sendLatencyPacket();
-		});
-
-		document.getElementById('e2eLatencyTest').addEventListener('click', function () {
-			sendE2ELatencyPacket();
-		});
-
 		updateStatus();
 
 		function updateStatus() {
@@ -89,7 +88,7 @@
 			let throttle = 0;
 
 			let gamepad;
-			if (gamepadIndex) gamepad = navigator.getGamepads()[gamepadIndex];
+			if (gamepadIndex >= 0) gamepad = navigator.getGamepads()[gamepadIndex];
 			if (gamepad) {
 				steering = mapRange(gamepad.axes[0], -1, 1, 1, 254);
 				throttle = mapRange(gamepad.axes[1], -1, 1, 1, 254);
@@ -103,8 +102,9 @@
 
 			if (ws.readyState === WebSocket.OPEN) {
 				sendControlPacket(steering, throttle);
-				//ws.send(JSON.stringify({ steering: steering, throttle: throttle }));
-			} else { console.error("WS not ready"); console.log(ws.readyState); }
+			} else {
+				document.getElementById('wsStatus').style.backgroundColor = 'red';
+			}
 
 			requestAnimationFrame(updateStatus);
 		}

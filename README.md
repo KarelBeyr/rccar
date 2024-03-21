@@ -5,6 +5,7 @@ Forwarding signals joystick/controller connected to computer (phone) to ESP32 co
 - [ ] security concerns - anybody can currently hijack my car as everything goes unencrypted over public IP address. How to improve? There could be a password field and forwarding server would validate password hash against some hardcoded value..
 - [ ] animate input in FE in a better graphical way, ideally show car with turned wheels, but how to display speed?
 - [x] enable FE control without having any gamepad connected
+- [ ] mirror gamepad input to vjoy visualisation?
 - [ ] change WS port to 80 or 443 and create cert infra on deployment server. Ideally it should run on http during development and then https during production
 - [ ] add state button to FE which will show if WS is connected and it will enable it to force connect.
 
@@ -23,6 +24,7 @@ I want to create a forwarding server that accepts packets from Websocket (from c
 - The server needs only to handle a single connection from websocket and a single connection to UDP. However, it must be able to handle both clients to reconnect from new IP address (e.g. websocket or UDP client can restart and they will initiate new websocket or UDP connection).
 - The server must be able to accept websocket communication even if UDP is not connected and perform basic tasks (logging incoming packets, replying to latency packet. Of course it would not forward anything).
 - The server must be able to accept UDP communication even if Websocket is not connected yet.
+- Whenever a new websocket client connects, server must dispose of the old websocket and communicate only with the new one
 
 Write this server in C#, you can split it into multiple files.
 

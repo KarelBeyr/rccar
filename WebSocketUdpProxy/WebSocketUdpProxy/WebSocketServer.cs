@@ -10,6 +10,7 @@ public class WebSocketServer
     private UdpServer? _udpServer; // Reference to UdpServer
     private WebSocket? _currentWebSocket;
     private readonly string _htmlFilePath = "./index.html";
+    CancellationTokenSource _currentConnectionCts = new CancellationTokenSource();
 
     public WebSocketServer(int port)
     {
@@ -23,11 +24,10 @@ public class WebSocketServer
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        HttpListener httpListener;
+        var httpListener = new HttpListener();
+        httpListener.Prefixes.Add($"http://*:{_port}/");
         try
         {
-            httpListener = new HttpListener();
-            httpListener.Prefixes.Add($"http://*:{_port}/");
             httpListener.Start();
             Console.WriteLine($"WebSocket server listening on port {_port}");
         }
@@ -37,63 +37,111 @@ public class WebSocketServer
             return;
         }
 
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var context = await httpListener.GetContextAsync();
-            if (context.Request.IsWebSocketRequest)
-            {
-                var webSocketContext = await context.AcceptWebSocketAsync(null);
-                _currentWebSocket = webSocketContext.WebSocket;
-                Console.WriteLine("WebSocket client connected.");
+        Task<HttpListenerContext>? acceptTask = null;
 
-                // Handle WebSocket communication in a loop
-                byte[] buffer = new byte[1024];
-                while (_currentWebSocket.State == WebSocketState.Open)
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (acceptTask == null)
                 {
-                    var result = await _currentWebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    acceptTask = httpListener.GetContextAsync();
+                }
+                if (acceptTask != await Task.WhenAny(acceptTask, Task.Delay(-1, cancellationToken)))
+                {
+                    continue; // Global cancellation (CTR+C) requested, get out of while loop
+                }
+
+                var context = acceptTask.Result;
+                Console.WriteLine("got WS result");
+                acceptTask = null; // Reset task for next loop iteration
+
+                if (context.Request.IsWebSocketRequest)
+                {
+                    if (_currentWebSocket != null && _currentWebSocket.State == WebSocketState.Open)
                     {
-                        await _currentWebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, cancellationToken);
+                        // Forcefully close the existing WebSocket connection.
+                        Console.WriteLine("Closing the existing WebSocket connection.");
+                        await _currentWebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "New connection established", CancellationToken.None);
                     }
-                    else
+
+                    Console.WriteLine("Accepting new WebSocket connection.");
+                    var webSocketContext = await context.AcceptWebSocketAsync(null);
+                    _currentWebSocket = webSocketContext.WebSocket;
+
+                    // Handle the new WebSocket connection in a non-blocking way
+                    _ = HandleWebSocketAsync(_currentWebSocket, cancellationToken);
+                }
+                else
+                {
+                    await ServeHtmlPage(context, cancellationToken);
+                }
+            }
+        }
+        finally
+        {
+            httpListener.Close();
+        }
+    }
+
+    async Task ServeHtmlPage(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        // Serve the HTML page for non-WebSocket requests
+        try
+        {
+            string content = File.ReadAllText(_htmlFilePath);
+            byte[] buffer = Encoding.UTF8.GetBytes(content);
+            context.Response.ContentLength64 = buffer.Length;
+            context.Response.ContentType = "text/html";
+            await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
+            context.Response.OutputStream.Close();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to serve HTML page: {ex.Message}");
+            context.Response.StatusCode = 500; // Internal Server Error
+            context.Response.Close();
+        }
+
+    }
+
+    private async Task HandleWebSocketAsync(WebSocket webSocket, CancellationToken cancellationToken)
+    {
+        byte[] buffer = new byte[1024];
+        try
+        {
+            while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+            {
+                var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                if (result.MessageType == WebSocketMessageType.Close || cancellationToken.IsCancellationRequested)
+                {
+                    await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, cancellationToken);
+                    break;
+                }
+                else
+                {
+                    Console.WriteLine("WR");
+                    byte[] receivedData = buffer.Take(result.Count).ToArray();
+                    if (receivedData.Length > 1)
                     {
-                        Console.WriteLine("WR");
-                        byte[] receivedData = buffer.Take(result.Count).ToArray();
-                        if (receivedData.Length > 1)
+                        switch (receivedData[1]) // Type byte
                         {
-                            switch (receivedData[1]) // Type byte
-                            {
-                                case 0x02: // Simple latency packet
-                                    await Send(receivedData);
-                                    break;
-                                case 0x01: // Control packet
-                                case 0x03: // E2E latency packet
-                                    _udpServer?.Send(receivedData);
-                                    break;
-                            }
+                            case 0x02: // Simple latency packet
+                                await Send(receivedData);
+                                break;
+                            case 0x01: // Control packet
+                            case 0x03: // E2E latency packet
+                                _udpServer?.Send(receivedData);
+                                break;
                         }
                     }
                 }
             }
-            else
-            {
-                // Serve the HTML page for non-WebSocket requests
-                try
-                {
-                    string content = File.ReadAllText(_htmlFilePath);
-                    byte[] buffer = Encoding.UTF8.GetBytes(content);
-                    context.Response.ContentLength64 = buffer.Length;
-                    context.Response.ContentType = "text/html";
-                    await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
-                    context.Response.OutputStream.Close();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Failed to serve HTML page: {ex.Message}");
-                    context.Response.StatusCode = 500; // Internal Server Error
-                    context.Response.Close();
-                }
-            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"WebSocket handling error: {ex.Message}");
+            // Optionally close the WebSocket if it's still open...
         }
     }
 
