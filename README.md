@@ -6,6 +6,7 @@ Forwarding signals joystick/controller connected to computer (phone) to ESP32 co
 - [ ] animate input in FE in a better graphical way, ideally show car with turned wheels, but how to display speed?
 - [x] enable FE control without having any gamepad connected
 - [ ] change WS port to 80 or 443 and create cert infra on deployment server. Ideally it should run on http during development and then https during production
+- [ ] add state button to FE which will show if WS is connected and it will enable it to force connect.
 
 ## Nocode GPT input
 ### Server component
