@@ -7,21 +7,21 @@
 // it receives UDP packets from server
 // it reads those packets and translates them into steering and throttle servo signal
 
-//const char* serverIp = "192.168.113.211";
-const char* serverIp = "192.168.113.244";
-//const char* serverIp = "77.240.102.169";
+//const char* serverIp = "192.168.113.211"; // ntb
+//const char* serverIp = "192.168.113.244"; // raspi
+const char* serverIp = "77.240.102.169"; // raspi public IP
 const unsigned int serverPort = 12000;
-const unsigned int localUdpPort = 12312; // TODO what is this for?
+const unsigned int localUdpPort = 12312; // is not important
 
 WiFiUDP udp;
 
 Servo myservo;  // create servo object to control a servo
 int servoPin = 13;
 
-void sendInitialUdpPacket() { // this basically connects us to the server so that the server knows where to send all data
-  Serial.println("Sending UDP packet...");
+void sendInitialUdpPacket() { // this basically connects us to the server so that the server knows where to send all data. Also serves as keep-alive packet for all NAT entries on the way.
+  Serial.print("H");
   udp.beginPacket(serverIp, serverPort);
-  udp.write(0xFF); // Example byte to send
+  udp.write(42); // Random byte to send
   udp.endPacket();
 }
 
@@ -42,13 +42,16 @@ void setup() {
   ESP32PWM::allocateTimer(0);
 	myservo.setPeriodHertz(50);    // standard 50 hz servo
 	myservo.attach(servoPin, 500, 2200); // attaches the servo on pin 18 to the servo object
-
-  sendInitialUdpPacket();
 }
 
-byte b = 0;
+long lastSec = -1;
 
 void loop() {
+  long currentSec = millis() / 200; // I want to send heartbeat packet every 5 seconds
+  if (currentSec > lastSec) {
+    lastSec = currentSec;
+    sendInitialUdpPacket();
+  }
   char incomingPacket[255]; 
   int packetSize = udp.parsePacket();
   if (packetSize) {
@@ -63,7 +66,7 @@ void loop() {
         myservo.write(mapped);
       } else if (incomingPacket[1] == 3)
       {
-        char pongPacket[] = {0xFF, 3, 0x00, 0x00, 0x00}; // Type 3 for pong
+        char pongPacket[] = {0xFF, 0x03, 0x00, 0x00, 0x00}; // Type 3 for pong
         udp.beginPacket(serverIp, serverPort);
         udp.write((unsigned char*)pongPacket, sizeof(pongPacket));
         udp.endPacket();
@@ -73,7 +76,7 @@ void loop() {
       }
       //Serial.printf(" Throttle is %3d\n", incomingPacket[2]);
     } else {
-      Serial.printf("But it's len is not 5 (%d) or header is not 0xFF(%d) or tail is not 0x00 (%d)", len, incomingPacket[0], incomingPacket[4]);
+      Serial.printf("Malformed packet: len is not 5 (%d) or header is not 0xFF(%d) or tail is not 0x00 (%d)", len, incomingPacket[0], incomingPacket[4]);
     }
   }
 }

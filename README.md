@@ -6,8 +6,10 @@ Forwarding signals joystick/controller connected to computer (phone) to ESP32 co
 - [ ] animate input in FE in a better graphical way, ideally show car with turned wheels, but how to display speed?
 - [x] enable FE control without having any gamepad connected
 - [ ] mirror gamepad input to vjoy visualisation?
-- [ ] change WS port to 80 or 443 and create cert infra on deployment server. Ideally it should run on http during development and then https during production
-- [ ] add state button to FE which will show if WS is connected and it will enable it to force connect.
+- [x] change WS port to 80 or 443 and create cert infra on deployment server. Ideally it should run on http during development and then https during production
+- [x] add state button to FE which will show if WS is connected and it will enable it to force connect.
+- [ ] why does FE keep sending data all the time, it should only send data if steer or thr differs by two or more..
+- [ ] bigger joystick, smaller deadzone (whenever I start using it on the phone, servo jumps a lot)
 
 ## Nocode GPT input
 ### Server component
