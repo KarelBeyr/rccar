@@ -4,7 +4,7 @@ Forwarding signals joystick/controller connected to computer (phone) to ESP32 co
 ## Current issues
 - [ ] security concerns - anybody can currently hijack my car as everything goes unencrypted over public IP address. How to improve? There could be a password field and forwarding server would validate password hash against some hardcoded value..
 - [ ] animate input in FE in a better graphical way, ideally show car with turned wheels, but how to display speed?
-- [ ] enable FE control without having any gamepad connected
+- [x] enable FE control without having any gamepad connected
 - [ ] change WS port to 80 or 443 and create cert infra on deployment server. Ideally it should run on http during development and then https during production
 
 ## Nocode GPT input

@@ -6,137 +6,154 @@
     <title>Gamepad API Demo with WebSocket</title>
 </head>
 <body>
-    <h2>Gamepad API Demo with WebSocket</h2>
-    <p>Connect a gamepad and press any button or move any stick.</p>
-    <p>Steering: <span id="steering">0</span></p>
-    <p>Throttle: <span id="throttle">0</span></p>
+	<h2>Gamepad API Demo with WebSocket</h2>
+	<p>Connect a gamepad and press any button or move any stick.</p>
+	<p>Steering: <span id="steering">0</span></p>
+	<p>Throttle: <span id="throttle">0</span></p>
 	<button id="latencyTest">Test Latency</button>
 	<p>Latency: <span id="latency">N/A</span></p>
 	<button id="e2eLatencyTest">Test E2E Latency</button>
 	<p>E2E Latency: <span id="e2eLatency">N/A</span></p>
-    <script>
-        const wsProtocol = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
-        const wsHost = window.location.hostname;
-        const wsPort = '12001'; // Set the WebSocket server port
+
+	<script src="https://cdn.statically.io/gh/cyrus2281/joystick-controller/main/dist/umd/joystick-controller.min.js">
+	</script>
+
+	<script>
+		JoystickController = JoystickController.default
+
+		let vjoyx = 0;
+		let vjoyy = 0;
+		const joystick = new JoystickController({}, (data) => { /*console.log(data); */ vjoyx = data.x; vjoyy = data.y });
+
+		const wsProtocol = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
+		const wsHost = window.location.hostname;
+		const wsPort = '12001'; // Set the WebSocket server port
 		const wsUrl = wsProtocol + wsHost + ':' + wsPort;
 
-        const ws = new WebSocket(wsUrl);
-        let gamepadIndex;
+		const ws = new WebSocket(wsUrl);
+		let gamepadIndex;
 		let latencySendTime = 0;
-        //const ws = new WebSocket('ws://beyr.cz:12001');
-        //const ws = new WebSocket('ws://77.240.102.169:12001');
-        //const ws = new WebSocket('ws://192.168.113.244:12001');
+		//const ws = new WebSocket('ws://beyr.cz:12001');
+		//const ws = new WebSocket('ws://77.240.102.169:12001');
+		//const ws = new WebSocket('ws://192.168.113.244:12001');
 		ws.binaryType = 'arraybuffer'; // so that we can receive binary data back from the server
 
 		let lastSteeringSent = -1; // to keep state of last sent state
 		let lastThrottleSent = -1;
 
-        ws.onopen = function(event) {
-            console.log("Connected to WebSocket at " + wsUrl);
-        };
+		ws.onopen = function (event) {
+			console.log("Connected to WebSocket at " + wsUrl);
+		};
 
-        ws.onerror = function(event) {
-            console.error("WebSocket error observed:", event);
-        };
-		
-		ws.onmessage = function(event) {
-		  var packet = new Uint8Array(event.data);
-		  if (packet[1] === 0x02) { // Simple latency response
-			var latency = performance.now() - latencySendTime;
-			document.getElementById('latency').textContent = latency + " ms";
-		  } else if (packet[1] === 0x03) { // E2E latency response
-			var e2eLatency = performance.now() - latencySendTime;
-			document.getElementById('e2eLatency').textContent = e2eLatency + " ms";
-		  }
+		ws.onerror = function (event) {
+			console.error("WebSocket error observed:", event);
+		};
+
+		ws.onmessage = function (event) {
+			var packet = new Uint8Array(event.data);
+			if (packet[1] === 0x02) { // Simple latency response
+				var latency = performance.now() - latencySendTime;
+				document.getElementById('latency').textContent = latency + " ms";
+			} else if (packet[1] === 0x03) { // E2E latency response
+				var e2eLatency = performance.now() - latencySendTime;
+				document.getElementById('e2eLatency').textContent = e2eLatency + " ms";
+			}
 		};
 
 		function mapRange(value, inMin, inMax, outMin, outMax) {
 			return Math.round(((value - inMin) * (outMax - outMin) / (inMax - inMin)) + outMin);
 		}
 
-        window.addEventListener("gamepadconnected", (event) => {
-            console.log(`Gamepad connected at index ${event.gamepad.index}: ${event.gamepad.id}.`);
-            gamepadIndex = event.gamepad.index;
-            requestAnimationFrame(updateStatus);
-        });
-
-        window.addEventListener("gamepaddisconnected", (event) => {
-            console.log(`Gamepad disconnected from index ${event.gamepad.index}: ${event.gamepad.id}.`);
-        });
-		
-		document.getElementById('latencyTest').addEventListener('click', function() {
-		  sendLatencyPacket();
+		window.addEventListener("gamepadconnected", (event) => {
+			console.log(`Gamepad connected at index ${event.gamepad.index}: ${event.gamepad.id}.`);
+			gamepadIndex = event.gamepad.index;
+			requestAnimationFrame(updateStatus);
 		});
 
-		document.getElementById('e2eLatencyTest').addEventListener('click', function() {
-		  sendE2ELatencyPacket();
+		window.addEventListener("gamepaddisconnected", (event) => {
+			console.log(`Gamepad disconnected from index ${event.gamepad.index}: ${event.gamepad.id}.`);
 		});
 
-        function updateStatus() {
-            const gamepad = navigator.getGamepads()[gamepadIndex];
-            if (!gamepad) {
-                return;
-            }
+		document.getElementById('latencyTest').addEventListener('click', function () {
+			sendLatencyPacket();
+		});
 
-			const steering = mapRange(gamepad.axes[0], -1, 1, 1, 254);
-			const throttle = mapRange(gamepad.axes[1], -1, 1, 1, 254);
+		document.getElementById('e2eLatencyTest').addEventListener('click', function () {
+			sendE2ELatencyPacket();
+		});
 
-            document.getElementById('steering').textContent = steering.toFixed(2);
-            document.getElementById('throttle').textContent = throttle.toFixed(2);
+		updateStatus();
 
-            if (ws.readyState === WebSocket.OPEN) {
+		function updateStatus() {
+			let steering = 0;
+			let throttle = 0;
+
+			let gamepad;
+			if (gamepadIndex) gamepad = navigator.getGamepads()[gamepadIndex];
+			if (gamepad) {
+				steering = mapRange(gamepad.axes[0], -1, 1, 1, 254);
+				throttle = mapRange(gamepad.axes[1], -1, 1, 1, 254);
+			} else {
+				steering = mapRange(vjoyx, -100, 100, 1, 254);
+				throttle = mapRange(vjoyy, -100, 100, 1, 254);
+			}
+
+			document.getElementById('steering').textContent = steering.toFixed(2);
+			document.getElementById('throttle').textContent = throttle.toFixed(2);
+
+			if (ws.readyState === WebSocket.OPEN) {
 				sendControlPacket(steering, throttle);
-                //ws.send(JSON.stringify({ steering: steering, throttle: throttle }));
-            } else {console.error("WS not ready"); console.log(ws.readyState);}
+				//ws.send(JSON.stringify({ steering: steering, throttle: throttle }));
+			} else { console.error("WS not ready"); console.log(ws.readyState); }
 
-            requestAnimationFrame(updateStatus);
-        }
-		
+			requestAnimationFrame(updateStatus);
+		}
+
 		function sendControlPacket(steering, throttle) {
-		  if (Math.abs(steering - lastSteeringSent) > 1 || Math.abs(throttle - lastThrottleSent) > 1) { // Check if the change in steering or throttle changed
-			var packet = new Uint8Array(5);
+			if (Math.abs(steering - lastSteeringSent) > 1 || Math.abs(throttle - lastThrottleSent) > 1) { // Check if the change in steering or throttle changed
+				var packet = new Uint8Array(5);
 
-			// Set the packet contents
+				// Set the packet contents
+				packet[0] = 0xFF; // Start byte
+				packet[1] = 0x01; // Packet type for control
+				packet[2] = steering; // Steering byte
+				packet[3] = throttle; // Throttle byte
+				packet[4] = 0x00; // Tail byte
+
+				// Send the binary packet over WebSocket
+				ws.send(packet);
+
+				// Update the last sent values
+				lastSteeringSent = steering;
+				lastThrottleSent = throttle;
+			}
+		}
+
+		function sendLatencyPacket() {
+			console.log("Sending latency check");
+			var packet = new Uint8Array(5);
 			packet[0] = 0xFF; // Start byte
-			packet[1] = 0x01; // Packet type for control
-			packet[2] = steering; // Steering byte
-			packet[3] = throttle; // Throttle byte
+			packet[1] = 0x02; // Packet type 2 for latency test
+			packet[2] = 0x00; // Placeholder byte
+			packet[3] = 0x00; // Placeholder byte
 			packet[4] = 0x00; // Tail byte
 
-			// Send the binary packet over WebSocket
+			latencySendTime = performance.now();
 			ws.send(packet);
+		}
 
-			// Update the last sent values
-			lastSteeringSent = steering;
-			lastThrottleSent = throttle;
-		  }
-		}
-		
-		function sendLatencyPacket() {
-		  console.log("Sending latency check");
-		  var packet = new Uint8Array(5);
-		  packet[0] = 0xFF; // Start byte
-		  packet[1] = 0x02; // Packet type 2 for latency test
-		  packet[2] = 0x00; // Placeholder byte
-		  packet[3] = 0x00; // Placeholder byte
-		  packet[4] = 0x00; // Tail byte
-		  
-		  latencySendTime = performance.now();
-		  ws.send(packet);
-		}
-		
 		function sendE2ELatencyPacket() {
-		  console.log("Sending E2E latency check");
-		  var packet = new Uint8Array(5);
-		  packet[0] = 0xFF; // Start byte
-		  packet[1] = 0x03; // Packet type 3 for E2E latency test
-		  packet[2] = 0x00; // Placeholder byte
-		  packet[3] = 0x00; // Placeholder byte
-		  packet[4] = 0x00; // Tail byte
-		  
-		  latencySendTime = performance.now(); // Reuse the same latencySendTime for simplicity
-		  ws.send(packet);
+			console.log("Sending E2E latency check");
+			var packet = new Uint8Array(5);
+			packet[0] = 0xFF; // Start byte
+			packet[1] = 0x03; // Packet type 3 for E2E latency test
+			packet[2] = 0x00; // Placeholder byte
+			packet[3] = 0x00; // Placeholder byte
+			packet[4] = 0x00; // Tail byte
+
+			latencySendTime = performance.now(); // Reuse the same latencySendTime for simplicity
+			ws.send(packet);
 		}
-    </script>
+	</script>
 </body>
 </html>
