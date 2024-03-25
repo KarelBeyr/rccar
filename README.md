@@ -32,8 +32,24 @@ Write this server in C#, you can split it into multiple files.
 
 Write me a Dockerfile (use .NET7) and command how to build the image and then another command to run the container.
 
-### Nocode GPT android streaming app
+### ESP32 client
+Write me a script that runs on ESP32 using arduino framework. 
+- It connects to UDP server (IP address and port will be hardcoded)
+- It receives packets from server. 
+- Packets have this 5 byte structure: First byte is header (0xFF), tail byte (last) is 0x00.
+- There are currently two types of packets:
+  1. Control packet: second byte is type (0x01), third byte is steering, fourth byte is throttle
+  2. E2E latency packet: second byte is type (0x03)
+- It controls two PWM signals: Steering servo and throttle (motor). The pin numbers are hardcoded.
+- It reads PWM on two pins for steering and throttle signal from standard R/C car receiver. Width of those signals is 1000 - 2000 us. The pin numbers are hardcoded.
+- Since it receives two signals, they have to be prioritized: The priority lies with R/C receiver signals:
+  1. If signals from receiver are not in central position, output those two signals to output PWM pins.
+  2. If signals from receiver are in central position, output signals that you receive from UDP server in control packet.
+- If it receives E2E latency packet, it responds a similar packet to server: type will be 0x03, and then second byt will be steering as read from receiver, third byte will be throttle from receiver
+- Send some UDP packets regularly, e.g. every second so that we keep the connection alive.
+
+### Android streaming app
 I want to create a native android application in Kotlin that would find list of available cameras and display them including their characteristics (forward or rear), and angle of view.
 
-### Nocode for android deployment
+### Adroid app deployment
 Can you explain me how to deploy (for development purposes) android application written in kotlin to my android phone?
