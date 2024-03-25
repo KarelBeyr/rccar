@@ -31,3 +31,9 @@ I want to create a forwarding server that accepts packets from Websocket (from c
 Write this server in C#, you can split it into multiple files.
 
 Write me a Dockerfile (use .NET7) and command how to build the image and then another command to run the container.
+
+### Nocode GPT android streaming app
+I want to create a native android application in Kotlin that would find list of available cameras and display them including their characteristics (forward or rear), and angle of view.
+
+### Nocode for android deployment
+Can you explain me how to deploy (for development purposes) android application written in kotlin to my android phone?

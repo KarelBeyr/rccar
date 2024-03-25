@@ -3,21 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gamepad API Demo with WebSocket</title>
+    <title>RC car control</title>
 </head>
 <body>
 	<h2>RC car control</h2>
 	<p>Connect a gamepad and press any button or move any stick.</p>
 	<p>Steering: <span id="steering">0</span></p>
 	<p>Throttle: <span id="throttle">0</span></p>
-	<p>
-		<button onclick="sendLatencyPacket()">Test Latency</button>
-		<span id="latency">N/A</span>
-	</p>
-	<p>
-		<button onclick="sendE2ELatencyPacket()">Test E2E Latency</button>
-		<span id="e2eLatency">N/A</span>
-	</p>
+	<p><span id="latency">N/A</span></p>
+	<p><span id="e2eLatency">N/A</span></p>
+	<p><span id="txThr">N/A</span></p>
+	<p><span id="txSteer">N/A</span></p>
 	<button id="wsStatus" onclick="connectWebsocket()">Connect websocket</button>
 
 	<script src="https://cdn.statically.io/gh/cyrus2281/joystick-controller/main/dist/umd/joystick-controller.min.js"></script>
@@ -27,13 +23,15 @@
 
 		let vjoyx = 0;
 		let vjoyy = 0;
-		const joystick = new JoystickController({}, (data) => { /*console.log(data); */ vjoyx = data.x; vjoyy = data.y });  // https://github.com/cyrus2281/joystick-controller
+		const maxRange = 300;
+		const joystick = new JoystickController({ maxRange: maxRange, radius: maxRange / 2 }, (data) => { /*console.log(data); */ vjoyx = data.x; vjoyy = data.y });  // https://github.com/cyrus2281/joystick-controller
 
 		const wsProtocol = (window.location.protocol === 'https:') ? 'wss://' : 'ws://';
 		const wsHost = window.location.hostname;
 		const wsPort = (window.location.protocol === 'https:') ? 443 : 12001; // Set the WebSocket server port. In dev it should be 12001, in prod
 		const wsUrl = wsProtocol + wsHost + ':' + wsPort;
 		let ws;
+		let currentColor;
 
 		function connectWebsocket() {
 			ws = new WebSocket(wsUrl);
@@ -41,7 +39,7 @@
 
 			ws.onopen = function (event) {
 				console.log("Connected to WebSocket at " + wsUrl);
-                document.getElementById('wsStatus').style.backgroundColor = 'green';
+				changeStatusButtonColor('green');
 			};
 
 			ws.onerror = function (event) {
@@ -52,13 +50,18 @@
 				var packet = new Uint8Array(event.data);
 				if (packet[1] === 0x02) { // Simple latency response
 					var latency = performance.now() - latencySendTime;
-                    document.getElementById('latency').textContent = latency.toFixed(0) + " ms";
+					document.getElementById('latency').textContent = "Server latency " + latency.toFixed(0) + " ms";
 				} else if (packet[1] === 0x03) { // E2E latency response
 					var e2eLatency = performance.now() - latencySendTime;
-                    document.getElementById('e2eLatency').textContent = e2eLatency.toFixed(0) + " ms";
+					document.getElementById('e2eLatency').textContent = "ESP32 latency " + e2eLatency.toFixed(0) + " ms";
+                    document.getElementById('txThr').textContent = "TX throttle " + packet[2];
+                    document.getElementById('txSteer').textContent = "TX steer " + packet[3];
 				}
 			};
 		}
+
+		setInterval(sendLatencyPacket, 500);
+		setInterval(sendE2ELatencyPacket, 777);
 
 		connectWebsocket();
 		let gamepadIndex = -1;
@@ -90,21 +93,17 @@
 			let gamepad;
 			if (gamepadIndex >= 0) gamepad = navigator.getGamepads()[gamepadIndex];
 			if (gamepad) {
-				steering = mapRange(gamepad.axes[0], -1, 1, 1, 254);
-				throttle = mapRange(gamepad.axes[1], -1, 1, 1, 254);
+				steering = mapRange(gamepad.axes[0], -1, 1, 254, 1);
+				throttle = mapRange(gamepad.axes[1], -1, 1, 254, 1);
 			} else {
-				steering = mapRange(vjoyx, -100, 100, 1, 254);
-				throttle = mapRange(vjoyy, -100, 100, 1, 254);
+				steering = mapRange(vjoyx, -maxRange, maxRange, 254, 1);
+				throttle = mapRange(vjoyy, -maxRange, maxRange, 254, 1);
 			}
 
 			document.getElementById('steering').textContent = steering.toFixed(2);
 			document.getElementById('throttle').textContent = throttle.toFixed(2);
 
-			if (ws.readyState === WebSocket.OPEN) {
-				sendControlPacket(steering, throttle);
-			} else {
-				document.getElementById('wsStatus').style.backgroundColor = 'red';
-			}
+			sendControlPacket(steering, throttle);
 
 			requestAnimationFrame(updateStatus);
 		}
@@ -121,7 +120,7 @@
 				packet[4] = 0x00; // Tail byte
 
 				// Send the binary packet over WebSocket
-				ws.send(packet);
+				sendPacketToWs(packet);
 
 				// Update the last sent values
 				lastSteeringSent = steering;
@@ -130,7 +129,7 @@
 		}
 
 		function sendLatencyPacket() {
-			console.log("Sending latency check");
+			// console.log("Sending latency check");
 			var packet = new Uint8Array(5);
 			packet[0] = 0xFF; // Start byte
 			packet[1] = 0x02; // Packet type 2 for latency test
@@ -139,11 +138,11 @@
 			packet[4] = 0x00; // Tail byte
 
 			latencySendTime = performance.now();
-			ws.send(packet);
+			sendPacketToWs(packet);
 		}
 
 		function sendE2ELatencyPacket() {
-			console.log("Sending E2E latency check");
+			// console.log("Sending E2E latency check");
 			var packet = new Uint8Array(5);
 			packet[0] = 0xFF; // Start byte
 			packet[1] = 0x03; // Packet type 3 for E2E latency test
@@ -152,7 +151,22 @@
 			packet[4] = 0x00; // Tail byte
 
 			latencySendTime = performance.now(); // Reuse the same latencySendTime for simplicity
-			ws.send(packet);
+			sendPacketToWs(packet);
+		}
+
+		function sendPacketToWs(packet) {
+			if (ws.readyState === WebSocket.OPEN) {
+				ws.send(packet);
+			} else {
+				changeStatusButtonColor('red');
+			}
+		}
+
+		function changeStatusButtonColor(newColor) {
+			if (currentColor != newColor) {
+				currentColor = newColor;
+				document.getElementById('wsStatus').style.backgroundColor = newColor;
+			}
 		}
 	</script>
 </body>
