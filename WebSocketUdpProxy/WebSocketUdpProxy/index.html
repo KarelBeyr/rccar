@@ -86,6 +86,8 @@
 
 		updateStatus();
 
+		let canUseThrottleSticks = false; // we need to initialize both throttle sticks (by moving them a bit) so that we get some non-zero value out of them :(
+
 		function updateStatus() {
 			let steering = 0;
 			let throttle = 0;
@@ -94,7 +96,21 @@
 			if (gamepadIndex >= 0) gamepad = navigator.getGamepads()[gamepadIndex];
 			if (gamepad) {
 				steering = mapRange(gamepad.axes[0], -1, 1, 254, 1);
-				throttle = mapRange(gamepad.axes[1], -1, 1, 254, 1);
+                throttle = 128; // neutral
+				if (gamepad.buttons[12].value === 0) {
+                    throttle = mapRange(gamepad.axes[1], -1, 1, 254, 1); // throttle from the main stick
+				}
+                if (gamepad.buttons[12].value === 1 && canUseThrottleSticks) {
+                    const throttleLeft = mapRange(gamepad.axes[2], 1, -1, 0, 100); // left throttle stick
+					const throttleRight = mapRange(gamepad.axes[6], 1, -1, 0, 100); // right throttle stick
+					if (throttleLeft < 6 || throttleRight < 6) { // only allow throttle stick control if one of throttle sticks is in default position
+						if (throttleLeft > throttleRight) throttle = mapRange(throttleLeft, 0, 100, 128, 1); // go forward with left throttle stick
+						if (throttleLeft < throttleRight) throttle = mapRange(throttleRight, 0, 100, 128, 254); // go back with right throttle stick
+					} else {
+						console.warn("Both throttle sticks out of neutral position!");
+					}
+				}
+				if (gamepad.axes[2] != 0 && gamepad.axes[6] != 0) canUseThrottleSticks = true; // both sticks have been moved from their default position
 			} else {
 				steering = mapRange(vjoyx, -maxRange, maxRange, 254, 1);
 				throttle = mapRange(vjoyy, -maxRange, maxRange, 254, 1);

@@ -29,7 +29,7 @@ public class WebSocketServer
         try
         {
             httpListener.Start();
-            Console.WriteLine($"WebSocket server listening on port {_port}");
+            Console.WriteLine($"HTTP server listening on port {_port}");
         }
         catch (Exception ex)
         {
