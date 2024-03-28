@@ -31,7 +31,11 @@
 		const wsPort = (window.location.protocol === 'https:') ? 443 : 12001; // Set the WebSocket server port. In dev it should be 12001, in prod
 		const wsUrl = wsProtocol + wsHost + ':' + wsPort;
 		let ws;
-		let currentColor;
+        let currentButtonColor;
+		let currentDocumentColor;
+		let isCarOverridenByTx = false;
+        let lastESP32PacketReceived = 0;
+        let lastServerPacketReceived = 0;
 
 		function connectWebsocket() {
 			ws = new WebSocket(wsUrl);
@@ -47,15 +51,18 @@
 			};
 
 			ws.onmessage = function (event) {
-				var packet = new Uint8Array(event.data);
+				const packet = new Uint8Array(event.data);
 				if (packet[1] === 0x02) { // Simple latency response
-					var latency = performance.now() - latencySendTime;
+					lastServerPacketReceived = performance.now();
+                    const latency = lastServerPacketReceived - serverLatencySendTime;
 					document.getElementById('latency').textContent = "Server latency " + latency.toFixed(0) + " ms";
 				} else if (packet[1] === 0x03) { // E2E latency response
-					var e2eLatency = performance.now() - latencySendTime;
+                    lastESP32PacketReceived = performance.now();
+                    const e2eLatency = lastESP32PacketReceived - e2eLatencySendTime;
 					document.getElementById('e2eLatency').textContent = "ESP32 latency " + e2eLatency.toFixed(0) + " ms";
                     document.getElementById('txThr').textContent = "TX throttle " + packet[2];
-                    document.getElementById('txSteer').textContent = "TX steer " + packet[3];
+					document.getElementById('txSteer').textContent = "TX steer " + packet[3];
+					if ((Math.abs(packet[2] - 127) > 10) || (Math.abs(packet[3] - 127) > 10)) isCarOverridenByTx = true; else isCarOverridenByTx = false;
 				}
 			};
 		}
@@ -65,7 +72,8 @@
 
 		connectWebsocket();
 		let gamepadIndex = -1;
-		let latencySendTime = 0;
+        let serverLatencySendTime = 0;
+        let e2eLatencySendTime = 0;
 
 		let lastSteeringSent = -1; // to keep state of last sent state
 		let lastThrottleSent = -1;
@@ -91,10 +99,12 @@
 		function updateStatus() {
 			let steering = 0;
 			let throttle = 0;
+			currentDocumentColor = "#ffffff";
+			if (isCarOverridenByTx) currentDocumentColor = "#ffaaaa";
 
 			let gamepad;
 			if (gamepadIndex >= 0) gamepad = navigator.getGamepads()[gamepadIndex];
-			if (gamepad) {
+			if (gamepad) { // this has been hard-coded for Saitek av8r joystick. Other controllers would need different logic
 				steering = mapRange(gamepad.axes[0], -1, 1, 254, 1);
                 throttle = 128; // neutral
 				if (gamepad.buttons[12].value === 0) {
@@ -121,21 +131,15 @@
 
 			sendControlPacket(steering, throttle);
 
+            if (performance.now() - lastServerPacketReceived > 2000) currentDocumentColor = "#ff0000"; // give visual feedback that we are not connected to server
+            if (performance.now() - lastESP32PacketReceived > 2000) currentDocumentColor = "#ff0000"; // give visual feedback that we are not connected to esp32
+			changeDocumentColor();
 			requestAnimationFrame(updateStatus);
 		}
 
 		function sendControlPacket(steering, throttle) {
 			if (Math.abs(steering - lastSteeringSent) > 1 || Math.abs(throttle - lastThrottleSent) > 1) { // Check if the change in steering or throttle changed
-				var packet = new Uint8Array(5);
-
-				// Set the packet contents
-				packet[0] = 0xFF; // Start byte
-				packet[1] = 0x01; // Packet type for control
-				packet[2] = steering; // Steering byte
-				packet[3] = throttle; // Throttle byte
-				packet[4] = 0x00; // Tail byte
-
-				// Send the binary packet over WebSocket
+                const packet = createPacket(1, steering, throttle);
 				sendPacketToWs(packet);
 
 				// Update the last sent values
@@ -145,29 +149,19 @@
 		}
 
 		function sendLatencyPacket() {
-			// console.log("Sending latency check");
-			var packet = new Uint8Array(5);
-			packet[0] = 0xFF; // Start byte
-			packet[1] = 0x02; // Packet type 2 for latency test
-			packet[2] = 0x00; // Placeholder byte
-			packet[3] = 0x00; // Placeholder byte
-			packet[4] = 0x00; // Tail byte
-
-			latencySendTime = performance.now();
+            const packet = createPacket(2, 0, 0);
+            serverLatencySendTime = performance.now();
 			sendPacketToWs(packet);
 		}
 
 		function sendE2ELatencyPacket() {
-			// console.log("Sending E2E latency check");
-			var packet = new Uint8Array(5);
-			packet[0] = 0xFF; // Start byte
-			packet[1] = 0x03; // Packet type 3 for E2E latency test
-			packet[2] = 0x00; // Placeholder byte
-			packet[3] = 0x00; // Placeholder byte
-			packet[4] = 0x00; // Tail byte
-
-			latencySendTime = performance.now(); // Reuse the same latencySendTime for simplicity
+			const packet = createPacket(3, 0, 0);
+			e2eLatencySendTime = performance.now();
 			sendPacketToWs(packet);
+		}
+
+		function createPacket(byte1, byte2, byte3) {
+            return new Uint8Array([0xFF, byte1, byte2, byte3, 0x00]);
 		}
 
 		function sendPacketToWs(packet) {
@@ -179,11 +173,16 @@
 		}
 
 		function changeStatusButtonColor(newColor) {
-			if (currentColor != newColor) {
-				currentColor = newColor;
+			if (currentButtonColor != newColor) {
+				currentButtonColor = newColor;
 				document.getElementById('wsStatus').style.backgroundColor = newColor;
 			}
 		}
+
+		function changeDocumentColor() {
+            document.body.style.backgroundColor = currentDocumentColor;
+		}
+
 	</script>
 </body>
 </html>
